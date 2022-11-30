@@ -7,6 +7,8 @@ Created on Tue Nov 29 08:42:54 2022
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+from PIL import Image
 
 st.title('ETABS Output Visualization')
 
@@ -67,30 +69,68 @@ df = load_col_con()
 df_joints = load_joints()
 df_disp = load_disp()
 
+st.sidebar.header('Filters')
+story = st.sidebar.selectbox('Story:', df_disp['Story'].unique())
+load_case = st.sidebar.selectbox('Load Case:', df_disp['Output Case'].unique())
+scale = st.sidebar.slider('Scale Factor:', 1, 10, 1)
+direction = st.sidebar.selectbox('Displacement', ['Ux', 'Uy', 'Uz'], index=2)
+
 df_m = merge_data(df_disp, df_joints, ['UniqueName', 'Story'])
-df_m = col_to_numeric(df_m, 'Uz')
+df_m = col_to_numeric(df_m, direction)
 df2 = filter_col_joints_only(df_m, df)
 
-st.sidebar.header('Filters')
-story = st.sidebar.selectbox('Story:', df_m['Story'].unique())
-load_case = st.sidebar.selectbox('Load Case:', df_m['Output Case'].unique())
-scale = st.sidebar.slider('Scale Factor:', 1, 10, 1)
-
-df2['Uz'] = df_m['Uz'] * scale
-df2['NormUz'] = (1.0 - (df2['Uz'] - df2['Uz'].min()) / (df2['Uz'].max() -
-                                                        df2['Uz'].min()))
+df2[direction] = df_m[direction] * scale
+df2['NormDisp'] = (1.0 - (df2[direction] - df2[direction].min()) /
+                   (df2[direction].max() - df2[direction].min()))
 
 dfplot = df2[(df2['Story'] == story) & (df2['Output Case'] == load_case)]
-dfplot['Uz'] = dfplot['Uz'] * scale
 
-fig = px.scatter(dfplot, x='X',  y='Y', color='Uz', size='NormUz',
-                 hover_data=['X', 'Y', 'Uz'],
-                 title='Vertical Displacement - ' + story)
+fig = go.Figure(data=(go.Scatter(x=dfplot['X'], y=dfplot['Y'],
+                                 mode='markers',
+                                 hovertext=dfplot[direction],
+                                 marker=dict(
+                                     size=dfplot['NormDisp']*40+1,
+                                     color=dfplot[direction],
+                                     colorscale='Viridis',
+                                     reversescale=True,
+                                     cmin=df2[direction].min(),
+                                     cmax=df2[direction].max(),
+                                     colorbar=dict(
+                                         title='Deflection (in)',
+                                         ticks='outside',
+                                         thickness=10)
+                                     )
+                                 )))
+
+grids = Image.open('grid.png')
+fig.add_layout_image(
+    dict(
+        source=grids,
+        xref="x",
+        yref="y",
+        x=-13.33,
+        y=102,
+        sizex=107.25,
+        sizey=105,
+        sizing="stretch",
+        opacity=1,
+        layer="below"
+        ))
+
+fig.update_xaxes(range=[-12, 93], tickvals=[0, 30, 60, 90], showgrid=False,
+                 zeroline=False, mirror=True, ticks='outside', showline=True)
+fig.update_yaxes(range=[-3, 102], tickvals=[0, 30, 60, 90], showgrid=False,
+                 zeroline=False, mirror=True, ticks='outside', showline=True)
+
+fig.update_layout(title=(direction + ' Displacement - ' + story),
+                  autosize=False, height=600)
 
 dfshow = dfplot.drop(columns=['Step Type', 'Step Number', 'Step Label',
-                              'NormUz', 'Label', 'Case Type', 'UniqueName',
+                              'NormDisp', 'Label', 'Case Type', 'UniqueName',
                               'Story'])
 
+st.sidebar.write('This is an example based on a simple 4 story ETABS model.')
+st.sidebar.image('model.png')
 st.subheader('Plan View Plot')
 st.plotly_chart(fig, use_container_width=True)
 st.subheader('Data')
