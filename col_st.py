@@ -69,22 +69,31 @@ df = load_col_con()
 df_joints = load_joints()
 df_disp = load_disp()
 
+# Sidebar widgets and text
 st.sidebar.header('Filters')
 story = st.sidebar.selectbox('Story:', df_disp['Story'].unique())
 load_case = st.sidebar.selectbox('Load Case:', df_disp['Output Case'].unique())
 direction = st.sidebar.selectbox('Displacement', ['Ux', 'Uy', 'Uz'], index=2)
 scale = st.sidebar.slider('Scale Factor:', 1, 10, 1)
+st.sidebar.write('This is an example based on a simple 4 story ETABS model.')
+st.sidebar.image('model.png')
 
+# Merge displacement and joint dataframes
+# Filter the joints so that only joints with column connectivity are kept
 df_m = merge_data(df_disp, df_joints, ['UniqueName', 'Story'])
 df_m = col_to_numeric(df_m, direction)
 df2 = filter_col_joints_only(df_m, df)
 
+# Apply scale factor to displacement
+# Normalize displacement for use in bubble plot
 df2[direction] = df_m[direction] * scale
 df2['NormDisp'] = (1.0 - (df2[direction] - df2[direction].min()) /
                    (df2[direction].max() - df2[direction].min()))
 
+# Filter data to include the selected story and output case
 dfplot = df2[(df2['Story'] == story) & (df2['Output Case'] == load_case)]
 
+# Create plot
 fig = go.Figure(data=(go.Scatter(x=dfplot['X'], y=dfplot['Y'],
                                  mode='markers',
                                  hovertext=dfplot[direction],
@@ -102,6 +111,7 @@ fig = go.Figure(data=(go.Scatter(x=dfplot['X'], y=dfplot['Y'],
                                      )
                                  )))
 
+# Add background image
 grids = Image.open('grid.png')
 fig.add_layout_image(
     dict(
@@ -117,26 +127,28 @@ fig.add_layout_image(
         layer="below"
         ))
 
+# Update figure graphics
 fig.update_xaxes(range=[-12, 93], tickvals=[0, 30, 60, 90], showgrid=False,
                  zeroline=False, mirror=True, ticks='outside', showline=True)
 fig.update_yaxes(range=[-3, 102], tickvals=[0, 30, 60, 90], showgrid=False,
                  zeroline=False, mirror=True, ticks='outside', showline=True)
-
 fig.update_layout(title=(direction + ' Displacement - ' + story),
                   autosize=False, height=600)
 
+# Create a stripped down dataframe for displaying in the dashboard
 dfshow = dfplot.drop(columns=['Step Type', 'Step Number', 'Step Label',
                               'NormDisp', 'Label', 'Case Type', 'UniqueName',
                               'Story'])
 
-st.sidebar.write('This is an example based on a simple 4 story ETABS model.')
-st.sidebar.image('model.png')
+# Add plot, text, and dataframe to the dashboard
 st.subheader('Plan View Plot')
 st.plotly_chart(fig, use_container_width=True)
 st.subheader('Data')
 st.write("Scale factor = ", scale)
 st.dataframe(dfshow, use_container_width=True)
 
+# Create csv for download button option
 csv = dfshow.to_csv()
 
+# Download button
 st.download_button("Download as CSV", csv)
