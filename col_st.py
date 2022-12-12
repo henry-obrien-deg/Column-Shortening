@@ -60,7 +60,7 @@ def col_to_numeric(df, col):
 @st.experimental_memo
 def filter_col_joints_only(dfjoints, dfcolcon):
     df2 = dfjoints[(dfjoints['UniqueName'].isin(dfcolcon['UniquePtI'])) |
-                   (dfjoints['UniqueName'].isin(dfcolcon['UniquePtJ']))]
+                   (dfjoints['UniqueName'].isin(dfcolcon['UniquePtJ']))].copy()
     return df2
 
 
